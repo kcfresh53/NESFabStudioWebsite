@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NESFab Studio — NES Game Development Reimagined</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-bright: #00ff41;
+    --green-mid: #00c832;
+    --green-dim: #007a1f;
+    --green-dark: #003d0f;
+    --green-glow: rgba(0, 255, 65, 0.15);
+    --bg-primary: #050a05;
+    --bg-panel: #080d08;
+    --bg-card: #0a120a;
+    --text-primary: #c8f5c8;
+    --text-secondary: #6baa6b;
+    --text-muted: #3a6b3a;
+    --border-color: #1a3d1a;
+    --accent-orange: #ff6b35;
+    --accent-blue: #35aaff;
+    --pixel-size: 2px;
+    --section-pad: 120px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Space Mono', monospace;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  .cursor {
+    position: fixed;
+    width: 12px;
+    height: 12px;
+    background: var(--green-bright);
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    clip-path: polygon(0 0, 100% 0, 100% 66%, 66% 66%, 66% 100%, 0 100%);
+    transition: opacity 0.1s;
+  }
+  .cursor-trail {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    background: var(--green-dim);
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    opacity: 0.4;
+    transition: left 0.08s, top 0.08s;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Navigation */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 500;
+    padding: 16px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(5, 10, 5, 0.92);
+    backdrop-filter: blur(8px);
+  }
+
+  .nav-logo {
+    font-family: 'VT323', monospace;
+    font-size: 28px;
+    color: var(--green-bright);
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px var(--green-bright);
+    text-decoration: none;
+  }
+  .nav-logo span { color: var(--text-secondary); }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+  .nav-links a {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--green-bright); }
+
+  .nav-cta {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--green-bright);
+    background: transparent;
+    border: 1px solid var(--green-bright);
+    padding: 8px 20px;
+    text-decoration: none;
+    cursor: none;
+    transition: background 0.2s, color 0.2s;
+    image-rendering: pixelated;
+  }
+  .nav-cta:hover { background: var(--green-bright); color: var(--bg-primary); }
+
+  /* Hero */
+  #hero {
+    position: relative;
+    height: 100vh;
+    min-height: 700px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Parallax star layers */
+  .stars-layer {
+    position: absolute;
+    inset: -20%;
+    background-repeat: repeat;
+    will-change: transform;
+  }
+  #stars-1 { background-image: radial-gradient(1px 1px at var(--x, 10%) var(--y, 10%), var(--green-dim) 0%, transparent 100%); opacity: 0.6; }
+  #stars-2 { background-image: radial-gradient(1px 1px at 20% 30%, var(--green-dim) 0%, transparent 100%), radial-gradient(1px 1px at 70% 60%, var(--green-dim) 0%, transparent 100%); opacity: 0.4; }
+
+  .pixel-grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-color) 1px, transparent 1px);
+    background-size: 32px 32px;
+    opacity: 0.3;
+    will-change: transform;
+  }
+
+  /* NES pixel art tiles for hero bg */
+  .pixel-tiles {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .pixel-tile {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: var(--green-dim);
+    opacity: 0;
+    animation: pixelFade 4s ease-in-out infinite;
+    image-rendering: pixelated;
+  }
+
+  @keyframes pixelFade {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 0.3; }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    max-width: 900px;
+    padding: 0 24px;
+  }
+
+  .hero-eyebrow {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--green-dim);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .hero-eyebrow::before, .hero-eyebrow::after {
+    content: '';
+    width: 40px;
+    height: 1px;
+    background: var(--green-dim);
+  }
+
+  .hero-title {
+    font-family: 'VT323', monospace;
+    font-size: clamp(72px, 10vw, 128px);
+    line-height: 0.9;
+    color: var(--green-bright);
+    text-shadow:
+      0 0 40px rgba(0,255,65,0.6),
+      0 0 80px rgba(0,255,65,0.2);
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+    animation: titlePulse 4s ease-in-out infinite;
+  }
+  .hero-title span {
+    color: var(--text-secondary);
+    text-shadow: none;
+  }
+
+  @keyframes titlePulse {
+    0%, 100% { text-shadow: 0 0 40px rgba(0,255,65,0.6), 0 0 80px rgba(0,255,65,0.2); }
+    50% { text-shadow: 0 0 60px rgba(0,255,65,0.9), 0 0 120px rgba(0,255,65,0.3); }
+  }
+
+  .hero-subtitle {
+    font-family: 'VT323', monospace;
+    font-size: clamp(24px, 4vw, 36px);
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    margin-bottom: 48px;
+    line-height: 1.3;
+  }
+
+  .hero-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    line-height: 1.8;
+    max-width: 560px;
+    margin: 0 auto 56px;
+  }
+
+  .hero-buttons {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--bg-primary);
+    background: var(--green-bright);
+    border: none;
+    padding: 12px 40px;
+    text-decoration: none;
+    cursor: none;
+    position: relative;
+    transition: transform 0.1s;
+    image-rendering: pixelated;
+    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(0,0,0,0.3);
+    pointer-events: none;
+  }
+  .btn-primary:hover { transform: translate(-2px, -2px); filter: brightness(1.1); }
+  .btn-primary:active { transform: translate(1px, 1px); }
+
+  .btn-secondary {
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--green-bright);
+    background: transparent;
+    border: 1px solid var(--green-bright);
+    padding: 12px 40px;
+    text-decoration: none;
+    cursor: none;
+    transition: background 0.2s, color 0.2s;
+  }
+  .btn-secondary:hover { background: rgba(0,255,65,0.08); }
+
+  /* Version badge */
+  .version-badge {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(6px); }
+  }
+  .version-badge::before { content: '▼'; font-size: 8px; color: var(--green-dim); }
+
+  /* Section styles */
+  section {
+    position: relative;
+    padding: var(--section-pad) 48px;
+  }
+
+  .section-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--green-dim);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-tag::before {
+    content: '//';
+    color: var(--text-muted);
+  }
+
+  .section-title {
+    font-family: 'VT323', monospace;
+    font-size: clamp(48px, 6vw, 80px);
+    color: var(--text-primary);
+    line-height: 1;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+  .section-title .accent { color: var(--green-bright); }
+
+  .section-body {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    line-height: 2;
+    max-width: 500px;
+  }
+
+  /* Divider */
+  .section-divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+    margin: 0;
+  }
+
+  /* ── FEATURES SECTION ── */
+  #features { background: var(--bg-panel); }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 2px;
+    margin-top: 64px;
+    border: 1px solid var(--border-color);
+  }
+
+  .feature-card {
+    padding: 40px;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .feature-card:hover { background: #0d170d; }
+  .feature-card::before {
+    content: attr(data-index);
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    font-family: 'VT323', monospace;
+    font-size: 48px;
+    color: var(--border-color);
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 24px;
+    image-rendering: pixelated;
+  }
+
+  .feature-name {
+    font-family: 'VT323', monospace;
+    font-size: 28px;
+    color: var(--green-bright);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+
+  .feature-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 2;
+    letter-spacing: 0.5px;
+  }
+
+  /* Pixel icon SVGs inline */
+  .pixel-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    margin-bottom: 24px;
+    image-rendering: pixelated;
+  }
+
+  /* ── WORKFLOW SECTION ── */
+  #workflow { overflow: hidden; }
+
+  .workflow-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    margin-top: 64px;
+  }
+
+  .workflow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .step {
+    display: flex;
+    gap: 24px;
+    padding: 28px 0;
+    border-bottom: 1px solid var(--border-color);
+    cursor: default;
+    transition: padding-left 0.2s;
+  }
+  .step:hover { padding-left: 12px; }
+  .step:last-child { border-bottom: none; }
+
+  .step-num {
+    font-family: 'VT323', monospace;
+    font-size: 36px;
+    color: var(--green-dim);
+    line-height: 1;
+    min-width: 40px;
+    transition: color 0.2s;
+  }
+  .step:hover .step-num { color: var(--green-bright); }
+
+  .step-content {}
+
+  .step-title {
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    color: var(--text-primary);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .step-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 2;
+    letter-spacing: 0.5px;
+  }
+
+  /* Terminal mockup */
+  .terminal {
+    background: #000;
+    border: 1px solid var(--green-dim);
+    position: relative;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+  }
+  .terminal::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(0,255,65,0.02) 18px, rgba(0,255,65,0.02) 19px);
+    pointer-events: none;
+  }
+
+  .terminal-bar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--green-dim);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #030a03;
+  }
+
+  .terminal-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--green-dim);
+  }
+  .terminal-dot:nth-child(2) { background: #444; }
+  .terminal-dot:nth-child(3) { background: #222; }
+
+  .terminal-title {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    margin-left: 8px;
+  }
+
+  .terminal-body {
+    padding: 24px;
+    font-size: 11px;
+    line-height: 2;
+    min-height: 280px;
+  }
+
+  .t-line { color: var(--text-muted); display: block; }
+  .t-line .kw { color: var(--green-bright); }
+  .t-line .fn { color: #7fffb2; }
+  .t-line .num { color: var(--accent-orange); }
+  .t-line .cmt { color: var(--text-muted); opacity: 0.5; }
+  .t-line .str { color: var(--accent-blue); }
+  .t-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 13px;
+    background: var(--green-bright);
+    animation: blink 1s step-end infinite;
+    vertical-align: text-bottom;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  /* ── CHR EDITOR SECTION ── */
+  #chr-editor { background: var(--bg-panel); }
+
+  .chr-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    margin-top: 64px;
+  }
+
+  /* Pixel canvas mockup */
+  .pixel-canvas-wrap {
+    aspect-ratio: 1;
+    max-width: 400px;
+    background: #000;
+    border: 1px solid var(--green-dim);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pixel-canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  .canvas-overlay {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent calc(12.5% - 0.5px), rgba(0,255,65,0.15) calc(12.5% - 0.5px), rgba(0,255,65,0.15) 12.5%
+    ),
+    repeating-linear-gradient(
+      90deg, transparent, transparent calc(12.5% - 0.5px), rgba(0,255,65,0.15) calc(12.5% - 0.5px), rgba(0,255,65,0.15) 12.5%
+    );
+    pointer-events: none;
+  }
+
+  .canvas-info {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    padding: 6px 0 0 0;
+  }
+
+  /* CHR palette strip */
+  .chr-palette {
+    display: flex;
+    gap: 4px;
+    margin-top: 12px;
+  }
+  .chr-pal-swatch {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border-color);
+    image-rendering: pixelated;
+  }
+
+  /* ── MAP EDITOR SECTION ── */
+  #map-editor {}
+
+  .map-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    margin-top: 64px;
+  }
+
+  .map-mockup {
+    background: #000;
+    border: 1px solid var(--green-dim);
+    padding: 16px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .map-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+  }
+
+  .map-tab {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: none;
+  }
+  .map-tab.active {
+    border-color: var(--green-dim);
+    color: var(--green-bright);
+    background: rgba(0,255,65,0.05);
+  }
+
+  .map-grid-wrap {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 0;
+    aspect-ratio: 2/1;
+    overflow: hidden;
+  }
+
+  .map-cell {
+    aspect-ratio: 1;
+    border: 0.5px solid rgba(0,255,65,0.05);
+    image-rendering: pixelated;
+  }
+
+  /* ── OBJECTS SECTION ── */
+  #objects { background: var(--bg-panel); }
+
+  .objects-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: start;
+    margin-top: 64px;
+  }
+
+  .objects-panel {
+    background: #000;
+    border: 1px solid var(--green-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  .objects-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .objects-name {
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    color: var(--text-primary);
+    padding: 16px 16px 8px;
+    letter-spacing: 1px;
+  }
+
+  .objects-comment {
+    color: var(--text-muted);
+    font-size: 10px;
+    padding: 0 16px 16px;
+    line-height: 2;
+    opacity: 0.6;
+  }
+  .objects-comment .cmt { color: #3a6b3a; }
+
+  .objects-fields {
+    border-top: 1px solid var(--border-color);
+    padding: 16px;
+  }
+
+  .field-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .field-name {
+    flex: 1;
+    color: var(--text-primary);
+    font-size: 11px;
+  }
+
+  .field-type {
+    font-size: 9px;
+    color: var(--accent-orange);
+    letter-spacing: 1px;
+    background: rgba(255,107,53,0.1);
+    padding: 2px 8px;
+    border: 1px solid rgba(255,107,53,0.2);
+  }
+
+  .field-val {
+    font-size: 11px;
+    color: var(--green-bright);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  .add-field-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 12px 0;
+    cursor: none;
+    transition: color 0.2s;
+  }
+  .add-field-btn:hover { color: var(--green-bright); }
+  .add-field-btn::before { content: '+'; color: var(--green-dim); }
+
+  /* ── METATILES SECTION ── */
+  #metatiles {}
+
+  .metatiles-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    margin-top: 64px;
+  }
+
+  .mt-editor {
+    background: #000;
+    border: 1px solid var(--green-dim);
+  }
+
+  .mt-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mt-grid {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    max-width: 200px;
+  }
+
+  .mt-quad {
+    aspect-ratio: 1;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mt-palette-strip {
+    padding: 0 16px 16px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .mt-pal-swatch {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border-color);
+    cursor: none;
+    transition: transform 0.1s;
+    image-rendering: pixelated;
+  }
+  .mt-pal-swatch.selected {
+    border-color: var(--green-bright);
+    transform: scale(1.1);
+  }
+
+  /* ── CTA SECTION ── */
+  #cta {
+    text-align: center;
+    padding: 160px 48px;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-panel);
+  }
+
+  #cta::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,255,65,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cta-title {
+    font-family: 'VT323', monospace;
+    font-size: clamp(56px, 8vw, 96px);
+    color: var(--green-bright);
+    line-height: 1;
+    letter-spacing: 4px;
+    margin-bottom: 24px;
+    text-shadow: 0 0 60px rgba(0,255,65,0.4);
+    position: relative;
+  }
+
+  .cta-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    margin-bottom: 48px;
+    position: relative;
+  }
+
+  .cta-buttons {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    position: relative;
+  }
+
+  /* Footer */
+  footer {
+    padding: 40px 48px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer-logo {
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    color: var(--green-dim);
+    letter-spacing: 2px;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+  }
+  .footer-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .footer-links a:hover { color: var(--text-secondary); }
+
+  /* Parallax container */
+  .parallax-section {
+    position: relative;
+  }
+
+  /* Scroll reveal */
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+
+  /* NES palette colors for map cells */
+  .nes-grass { background: #3e7a19; }
+  .nes-grass2 { background: #2a5510; }
+  .nes-sky { background: #4a9fd4; }
+  .nes-dirt { background: #8b5a2b; }
+  .nes-stone { background: #666; }
+  .nes-dark { background: #111; }
+  .nes-water { background: #1a6bb5; }
+  .nes-tree { background: #1a4a08; }
+  .nes-orange { background: #c04010; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    nav { padding: 14px 24px; }
+    .nav-links { display: none; }
+    section { padding: 80px 24px; }
+    .workflow-layout,
+    .chr-layout,
+    .map-layout,
+    .objects-layout,
+    .metatiles-layout { grid-template-columns: 1fr; gap: 40px; }
+    .features-grid { grid-template-columns: 1fr; }
+    footer { flex-direction: column; text-align: center; padding: 32px 24px; }
+  }
+
+  /* Glitch effect for title */
+  @keyframes glitch {
+    0%, 95%, 100% { clip-path: none; transform: none; }
+    96% { clip-path: polygon(0 20%, 100% 20%, 100% 40%, 0 40%); transform: translate(-3px, 0); }
+    97% { clip-path: polygon(0 60%, 100% 60%, 100% 80%, 0 80%); transform: translate(3px, 0); }
+    98% { clip-path: polygon(0 10%, 100% 10%, 100% 30%, 0 30%); transform: translate(-1px, 0); }
+    99% { clip-path: none; transform: translate(0, 0); }
+  }
+
+  .glitch-wrap { position: relative; display: inline-block; }
+  .glitch-wrap::before, .glitch-wrap::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    font-family: 'VT323', monospace;
+    font-size: inherit;
+    letter-spacing: inherit;
+    pointer-events: none;
+  }
+  .glitch-wrap::before {
+    color: var(--accent-orange);
+    animation: glitch 8s ease-in-out infinite;
+    opacity: 0.4;
+  }
+  .glitch-wrap::after {
+    color: var(--accent-blue);
+    animation: glitch 8s ease-in-out infinite 0.05s;
+    opacity: 0.3;
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-trail" id="cursor-trail"></div>
+
+<!-- Navigation -->
+<nav>
+  <a href="#" class="nav-logo" style="display:flex;align-items:center;gap:10px;">
+    <img src="NESFabStudio-iOS-Dark-1024x1024_1x.png" alt="NESFab Studio icon" style="width:32px;height:32px;border-radius:7px;image-rendering:pixelated;flex-shrink:0;">
+    NESFab<span>Studio</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#workflow">Workflow</a></li>
+    <li><a href="#chr-editor">CHR Editor</a></li>
+    <li><a href="#map-editor">Map Editor</a></li>
+    <li><a href="#video">Video</a></li>
+  </ul>
+  <a href="https://kcfresh53.itch.io/nesfab-studio" class="nav-cta" target="_blank">Buy — $10 ↗</a>
+</nav>
+
+<!-- Hero -->
+<section id="hero">
+  <div class="pixel-grid-bg" id="parallax-grid"></div>
+  <div class="pixel-tiles" id="pixel-tiles"></div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow reveal">NESFab Studio v0.1 — Available on itch.io</div>
+    <div class="reveal reveal-delay-1" style="display:flex;justify-content:center;margin-bottom:24px;">
+      <img src="NESFabStudio-iOS-Dark-1024x1024_1x.png" alt="NESFab Studio" style="width:96px;height:96px;border-radius:22px;box-shadow:0 0 40px rgba(0,255,65,0.3),0 0 80px rgba(0,255,65,0.1);image-rendering:auto;">
+    </div>
+    <h1 class="hero-title reveal reveal-delay-2">
+      <span class="glitch-wrap" data-text="NESFab">NESFab</span><br>
+      <span>Studio</span>
+    </h1>
+    <p class="hero-subtitle reveal reveal-delay-3">The NES development IDE<br>you always wanted</p>
+    <p class="hero-desc reveal reveal-delay-4">
+      A complete NES game development environment. CHR tile editor, metatile composer, nametable painter, object classes, and a purpose-built language that compiles directly to 6502 assembly.
+    </p>
+    <div class="hero-buttons reveal reveal-delay-4">
+      <a href="https://kcfresh53.itch.io/nesfab-studio" class="btn-primary" target="_blank">Buy on itch.io — $10</a>
+      <a href="#features" class="btn-secondary">Explore Features</a>
+    </div>
+  </div>
+
+  <div class="version-badge">SCROLL TO EXPLORE</div>
+</section>
+
+<hr class="section-divider">
+
+<!-- Features -->
+<section id="features" class="parallax-section">
+  <div class="section-inner">
+    <div class="section-tag reveal">Core Features</div>
+    <h2 class="section-title reveal reveal-delay-1">Everything in <span class="accent">one place</span></h2>
+    <p class="section-body reveal reveal-delay-2">No more juggling a dozen separate tools. NESFab Studio unifies every stage of NES game development in a single, cohesive environment.</p>
+
+    <div class="features-grid">
+      <div class="feature-card reveal" data-index="01">
+        <svg class="pixel-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="7" height="7" fill="#007a1f"/>
+          <rect x="9" y="0" width="7" height="7" fill="#003d0f"/>
+          <rect x="0" y="9" width="7" height="7" fill="#003d0f"/>
+          <rect x="9" y="9" width="7" height="7" fill="#007a1f"/>
+          <rect x="3" y="3" width="3" height="3" fill="#00ff41"/>
+          <rect x="10" y="10" width="3" height="3" fill="#00ff41"/>
+        </svg>
+        <div class="feature-name">CHR Editor</div>
+        <div class="feature-desc">Draw NES CHR tiles directly in the studio. Full palette support, 8×8 pixel grid, multiple banks. See your sprites live as you paint them.</div>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-1" data-index="02">
+        <svg class="pixel-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="16" height="3" fill="#007a1f"/>
+          <rect x="0" y="4" width="16" height="3" fill="#003d0f"/>
+          <rect x="0" y="8" width="16" height="3" fill="#007a1f"/>
+          <rect x="0" y="12" width="16" height="3" fill="#003d0f"/>
+          <rect x="6" y="0" width="4" height="16" fill="#00ff41" opacity="0.3"/>
+        </svg>
+        <div class="feature-name">Nametable Painter</div>
+        <div class="feature-desc">Paint your level nametables using metatile stamps. 16×15 metatile grid maps directly to the NES PPU nametable — what you see is what runs.</div>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-2" data-index="03">
+        <svg class="pixel-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="6" height="6" fill="#007a1f"/>
+          <rect x="9" y="1" width="6" height="6" fill="#003d0f"/>
+          <rect x="1" y="9" width="6" height="6" fill="#003d0f"/>
+          <rect x="9" y="9" width="6" height="6" fill="#007a1f"/>
+          <rect x="2" y="2" width="4" height="4" fill="#00ff41" opacity="0.5"/>
+        </svg>
+        <div class="feature-name">Metatile Composer</div>
+        <div class="feature-desc">Build 2×2 metatile sets from your CHR tiles. Assign palette attributes per quadrant. Build reusable tile vocabularies for your levels.</div>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-3" data-index="04">
+        <svg class="pixel-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="3" width="10" height="2" fill="#007a1f"/>
+          <rect x="0" y="7" width="14" height="2" fill="#00ff41"/>
+          <rect x="0" y="11" width="8" height="2" fill="#007a1f"/>
+          <rect x="12" y="11" width="4" height="2" fill="#003d0f"/>
+        </svg>
+        <div class="feature-name">NESFab Language</div>
+        <div class="feature-desc">Write game logic in NESFab — a purpose-built language that compiles to optimized 6502. First-class NES concepts: NMI handlers, PPU registers, OAM, palettes.</div>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-1" data-index="05">
+        <svg class="pixel-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="8" cy="8" r="2" fill="#00ff41"/>
+          <rect x="7" y="1" width="2" height="4" fill="#007a1f"/>
+          <rect x="7" y="11" width="2" height="4" fill="#007a1f"/>
+          <rect x="1" y="7" width="4" height="2" fill="#007a1f"/>
+          <rect x="11" y="7" width="4" height="2" fill="#007a1f"/>
+        </svg>
+        <div class="feature-name">Object Classes</div>
+        <div class="feature-desc">Define typed object classes with custom fields directly in the map editor. Spawn points, enemy configs, and triggers — all visible and editable in context.</div>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-2" data-index="06">
+        <svg class="pixel-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="12" width="14" height="3" fill="#007a1f"/>
+          <rect x="1" y="8" width="10" height="3" fill="#003d0f"/>
+          <rect x="1" y="4" width="12" height="3" fill="#007a1f"/>
+          <rect x="1" y="0" width="6" height="3" fill="#003d0f"/>
+          <rect x="13" y="0" width="2" height="2" fill="#00ff41" opacity="0.8"/>
+        </svg>
+        <div class="feature-name">Integrated Build</div>
+        <div class="feature-desc">One-click build that generates .fab source files from your maps and compiles the full project. The console shows errors and paths inline — no terminal switching.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- Workflow -->
+<section id="workflow" class="parallax-section">
+  <div class="section-inner">
+    <div class="workflow-layout">
+      <div>
+        <div class="section-tag reveal">Development Flow</div>
+        <h2 class="section-title reveal reveal-delay-1">Write code.<br><span class="accent">Paint levels.</span><br>Build ROMs.</h2>
+        <p class="section-body reveal reveal-delay-2" style="margin-bottom: 40px;">NESFab Studio collapses the full NES development cycle into a single project. Your .chr, .fab, and map files all live together and compile in one step.</p>
+
+        <div class="workflow-steps reveal reveal-delay-3">
+          <div class="step">
+            <div class="step-num">01</div>
+            <div class="step-content">
+              <div class="step-title">Draw CHR tiles</div>
+              <div class="step-desc">Paint 8×8 pixel tiles in the CHR editor. Organize across CHR banks. Tiles are instantly available in the metatile and map editors.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">02</div>
+            <div class="step-content">
+              <div class="step-title">Compose metatiles</div>
+              <div class="step-desc">Combine 4 CHR tiles into a 16×16 metatile. Assign palette attributes to each 2×2 quadrant for accurate NES attribute table output.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">03</div>
+            <div class="step-content">
+              <div class="step-title">Paint the nametable</div>
+              <div class="step-desc">Stamp metatiles onto the 16×15 level grid. Place object instances — enemies, spawn points, triggers — directly on the map.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">04</div>
+            <div class="step-content">
+              <div class="step-title">Write NESFab logic</div>
+              <div class="step-desc">Open main.fab and write your game loop, NMI handler, and entity logic. The language maps 1:1 to NES hardware primitives.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">05</div>
+            <div class="step-content">
+              <div class="step-title">Build &amp; run</div>
+              <div class="step-desc">Hit Build. The studio generates .fab data files from your maps, compiles the project, and outputs a ready-to-run .nes ROM.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal reveal-delay-2">
+        <div class="terminal">
+          <div class="terminal-bar">
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <div class="terminal-title">MAIN.FAB — NESFab source</div>
+          </div>
+          <div class="terminal-body">
+            <span class="t-line"><span class="cmt">// CompTest — NESFab main entry point</span></span>
+            <span class="t-line">&nbsp;</span>
+            <span class="t-line"><span class="kw">nmi</span> <span class="fn">game_nmi</span>()</span>
+            <span class="t-line">&nbsp; <span class="fn">{PPUSCROLL}(</span><span class="num">0</span><span class="fn">)</span></span>
+            <span class="t-line">&nbsp; <span class="fn">{PPUSCROLL}(</span><span class="num">0</span><span class="fn">)</span></span>
+            <span class="t-line">&nbsp; <span class="fn">{PPUMASK}(PPUMASK_BG_ON)</span></span>
+            <span class="t-line">&nbsp; <span class="fn">ppu_upload_oam_poll_pads(</span><span class="num">0</span><span class="fn">)</span></span>
+            <span class="t-line">&nbsp;</span>
+            <span class="t-line"><span class="kw">mode</span> <span class="fn">main</span>()</span>
+            <span class="t-line">&nbsp; : <span class="kw">nmi</span> <span class="fn">game_nmi</span></span>
+            <span class="t-line">&nbsp; &nbsp; <span class="fn">{PPUCTRL}(</span><span class="num">0</span><span class="fn">)</span></span>
+            <span class="t-line">&nbsp; &nbsp; <span class="fn">{PPUMASK}(</span><span class="num">0</span><span class="fn">)</span></span>
+            <span class="t-line">&nbsp;</span>
+            <span class="t-line">&nbsp; <span class="cmt">// Upload palette</span></span>
+            <span class="t-line">&nbsp; <span class="kw">for</span> U i = <span class="num">0</span>; i &lt; <span class="num">16</span>; i += <span class="num">1</span></span>
+            <span class="t-line">&nbsp; &nbsp; <span class="fn">palette[i] = pal_level(i)</span></span>
+            <span class="t-line">&nbsp; &nbsp; <span class="fn">ppu_upload_palette()</span></span>
+            <span class="t-line">&nbsp;</span>
+            <span class="t-line">&nbsp; <span class="fn">{PPUSTATUS}()</span></span>
+            <span class="t-line">&nbsp; <span class="fn">{PPUADDR}($</span><span class="num">20</span><span class="fn">)</span></span>
+            <span class="t-line">&nbsp; <span class="fn">{PPUADDR}($</span><span class="num">00</span><span class="fn">)</span></span>
+            <span class="t-line"><span class="t-cursor"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- CHR Editor -->
+<section id="chr-editor" class="parallax-section">
+  <div class="section-inner">
+    <div class="chr-layout">
+      <div class="reveal">
+        <div class="pixel-canvas-wrap">
+          <canvas id="chr-canvas" width="256" height="256"></canvas>
+          <div class="canvas-overlay"></div>
+        </div>
+        <div class="canvas-info">CHR SHEET — 8×8 tiles · CHR-0 · 64 tiles total</div>
+        <div class="chr-palette">
+          <div class="chr-pal-swatch" style="background:#0a0a0a;"></div>
+          <div class="chr-pal-swatch" style="background:#ffffff; border-color: var(--green-bright);"></div>
+          <div class="chr-pal-swatch" style="background:#3e7a19;"></div>
+          <div class="chr-pal-swatch" style="background:#1a4a08;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="section-tag reveal">CHR Tile Editor</div>
+        <h2 class="section-title reveal reveal-delay-1">Pixel-perfect<br><span class="accent">tile art</span></h2>
+        <p class="section-body reveal reveal-delay-2" style="margin-bottom: 32px;">Paint NES CHR tiles directly inside the studio. The editor enforces the NES 4-color-per-tile limit and gives you a live zoomed preview with the full CHR sheet visible alongside.</p>
+        <div class="reveal reveal-delay-3" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Pencil, eraser, fill, eyedropper tools
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> 4-color NES palette enforced per tile
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Multiple CHR banks, live preview
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Auto-save on every edit stroke
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- Map Editor -->
+<section id="map-editor" class="parallax-section">
+  <div class="section-inner">
+    <div class="map-layout">
+      <div>
+        <div class="section-tag reveal">Nametable &amp; Level Editor</div>
+        <h2 class="section-title reveal reveal-delay-1">Paint levels<br><span class="accent">tile by tile</span></h2>
+        <p class="section-body reveal reveal-delay-2" style="margin-bottom: 32px;">The nametable editor maps your metatile stamps directly to the NES's 16×15 metatile nametable grid. Object instances sit on a separate layer, keeping visual and data concerns clean.</p>
+        <div class="reveal reveal-delay-3" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Stamp, dropper, and fill tools
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Toggle MT grid and attribute grid overlays
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Separate tile and object layers
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Generates .fab data automatically on save
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal reveal-delay-1">
+        <div class="map-mockup">
+          <div class="map-toolbar">
+            <div class="map-tab active">Nametable</div>
+            <div class="map-tab">Metatiles</div>
+            <div class="map-tab">Palettes</div>
+            <div class="map-tab">Objects</div>
+          </div>
+          <div class="map-grid-wrap" id="map-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- Objects -->
+<section id="objects" class="parallax-section">
+  <div class="section-inner">
+    <div class="objects-layout">
+      <div>
+        <div class="section-tag reveal">Object System</div>
+        <h2 class="section-title reveal reveal-delay-1">Type-safe<br><span class="accent">game objects</span></h2>
+        <p class="section-body reveal reveal-delay-2" style="margin-bottom: 32px;">Define object classes with typed fields — U8, U16, Bool — and place instances directly on the map. The compiler generates tight 6502 data tables from your object definitions.</p>
+        <div class="reveal reveal-delay-3" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Integer and boolean typed fields
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Per-class color coding on the map
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Multiple object classes per scene
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Compiled to efficient 6502 data tables
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal reveal-delay-2">
+        <div class="objects-panel">
+          <div class="objects-header">
+            <span>Object Classes</span>
+            <span style="color:var(--green-dim);">level.scene</span>
+          </div>
+          <div style="display:flex; gap:0; border-bottom:1px solid var(--border-color);">
+            <div style="padding:10px 16px; border-right:1px solid var(--border-color); font-size:10px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase;">Classes</div>
+          </div>
+          <div style="padding:8px 0;">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(0,255,65,0.05);border-left:2px solid var(--green-bright);">
+              <div style="width:10px;height:10px;background:#c04010;flex-shrink:0;image-rendering:pixelated;"></div>
+              <span style="font-size:12px;color:var(--text-primary);">enemies</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;">
+              <div style="width:10px;height:10px;background:var(--green-dim);flex-shrink:0;image-rendering:pixelated;"></div>
+              <span style="font-size:12px;color:var(--text-secondary);">spawn_points</span>
+            </div>
+          </div>
+          <div style="padding:12px 16px;border-top:1px solid var(--border-color);">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);line-height:2;">
+              <div><span style="color:var(--text-muted);">// Object class: enemies</span></div>
+              <div><span style="color:var(--text-muted);">// Fields: 1</span></div>
+              <div><span style="color:var(--text-muted);">ct U8 hitpoints = 100</span></div>
+            </div>
+          </div>
+          <div class="objects-fields">
+            <div class="field-label">Fields</div>
+            <div class="field-row">
+              <div class="field-name">hitpoints</div>
+              <div class="field-type">U8</div>
+              <div class="field-val">100</div>
+            </div>
+            <div class="add-field-btn">Add Field</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- Metatiles -->
+<section id="metatiles" class="parallax-section">
+  <div class="section-inner">
+    <div class="metatiles-layout">
+      <div>
+        <div class="section-tag reveal">Metatile Editor</div>
+        <h2 class="section-title reveal reveal-delay-1">16×16 tiles with<br><span class="accent">palette control</span></h2>
+        <p class="section-body reveal reveal-delay-2" style="margin-bottom: 32px;">Compose 2×2 metatiles from your CHR tileset and assign one of four palettes to each 2×2 attribute block. The editor enforces NES hardware constraints so there are no surprises at compile time.</p>
+        <div class="reveal reveal-delay-3" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> TL / TR / BL / BR quadrant selection
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Per-quadrant palette assignment (0–3)
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Live full CHR sheet for tile picking
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-secondary);">
+            <span style="color:var(--green-dim);">✦</span> Subtile index shown on hover
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal reveal-delay-2">
+        <div class="mt-editor">
+          <div class="mt-header">
+            <span>Editing MT #00</span>
+            <span style="color:var(--green-dim);">Subtile: 0</span>
+          </div>
+          <div style="padding:16px;display:flex;gap:24px;align-items:flex-start;">
+            <div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;width:120px;margin-bottom:12px;">
+                <div style="display:flex;align-items:center;justify-content:center;aspect-ratio:1;border:1px solid var(--green-dim);background:#1a3d1a;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--green-bright);">TL</div>
+                <div style="display:flex;align-items:center;justify-content:center;aspect-ratio:1;border:1px solid var(--border-color);background:#0a120a;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);">TR</div>
+                <div style="display:flex;align-items:center;justify-content:center;aspect-ratio:1;border:1px solid var(--border-color);background:#0a120a;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);">BL</div>
+                <div style="display:flex;align-items:center;justify-content:center;aspect-ratio:1;border:1px solid var(--border-color);background:#0a120a;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);">BR</div>
+              </div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);margin-bottom:6px;letter-spacing:1px;">PALETTE</div>
+              <div style="display:flex;gap:4px;">
+                <div style="width:20px;height:20px;background:#3e7a19;border:2px solid var(--green-bright);cursor:none;image-rendering:pixelated;"></div>
+                <div style="width:20px;height:20px;background:#c04010;border:1px solid var(--border-color);cursor:none;image-rendering:pixelated;"></div>
+                <div style="width:20px;height:20px;background:#f0c0b0;border:1px solid var(--border-color);cursor:none;image-rendering:pixelated;"></div>
+                <div style="width:20px;height:20px;background:#c8a050;border:1px solid var(--border-color);cursor:none;image-rendering:pixelated;"></div>
+              </div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);margin-bottom:8px;letter-spacing:1px;">CHR SHEET</div>
+              <canvas id="mt-chr-canvas" width="128" height="64" style="width:100%;image-rendering:pixelated;border:1px solid var(--border-color);display:block;"></canvas>
+            </div>
+          </div>
+          <div style="padding:0 16px 16px;">
+            <div style="height:24px;overflow:hidden;border:1px solid var(--border-color);" id="mt-strip"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- Video -->
+<section id="video" style="padding: var(--section-pad) 48px; background: var(--bg-primary);">
+  <div class="section-inner">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;">
+      <div>
+        <div class="section-tag reveal">See It in Action</div>
+        <h2 class="section-title reveal reveal-delay-1">Watch the<br><span class="accent">full showcase</span></h2>
+        <p class="section-body reveal reveal-delay-2" style="margin-bottom: 32px;">See NESFab Studio's CHR editor, metatile composer, nametable painter, object system, and build pipeline all working together in a complete walkthrough.</p>
+        <div class="reveal reveal-delay-3">
+          <a href="https://kcfresh53.itch.io/nesfab-studio" class="btn-primary" target="_blank" style="display:inline-block;">Buy on itch.io — $10</a>
+        </div>
+      </div>
+      <div class="reveal reveal-delay-1">
+        <div style="position:relative; width:100%; padding-bottom:56.25%; background:#000; border:1px solid var(--green-dim); overflow:hidden;">
+          <iframe
+            src="https://www.youtube.com/embed/g4zzqUnPiHE"
+            title="NESFab Studio Showcase"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            style="position:absolute; inset:0; width:100%; height:100%; border:none;">
+          </iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- CTA -->
+<section id="cta">
+  <div class="cta-title reveal">
+    <span class="glitch-wrap" data-text="Start Building">Start Building</span>
+  </div>
+  <p class="cta-sub reveal reveal-delay-1">$10 on itch.io. No subscription. Yours to keep.</p>
+  <div class="cta-buttons reveal reveal-delay-2">
+    <a href="https://kcfresh53.itch.io/nesfab-studio" class="btn-primary" target="_blank">Buy on itch.io — $10</a>
+    <a href="#features" class="btn-secondary">Explore Features</a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-logo">NESFab Studio</div>
+  <ul class="footer-links">
+    <li><a href="https://kcfresh53.itch.io/nesfab-studio" target="_blank">itch.io</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#video">Video</a></li>
+  </ul>
+  <div>© 2026 NESFab Studio — kcfresh53</div>
+</footer>
+
+<script>
+// Cursor
+const cursor = document.getElementById('cursor');
+const trail = document.getElementById('cursor-trail');
+let mx = 0, my = 0;
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursor.style.left = mx + 'px';
+  cursor.style.top = my + 'px';
+  setTimeout(() => {
+    trail.style.left = mx + 'px';
+    trail.style.top = my + 'px';
+  }, 60);
+});
+
+// Parallax
+document.addEventListener('scroll', () => {
+  const sy = window.scrollY;
+  const grid = document.getElementById('parallax-grid');
+  if (grid) grid.style.transform = `translateY(${sy * 0.3}px)`;
+  document.querySelectorAll('.parallax-section').forEach((s, i) => {
+    const rect = s.getBoundingClientRect();
+    const factor = 0.04 * (i % 2 === 0 ? 1 : -1);
+    s.style.backgroundPositionY = (rect.top * factor) + 'px';
+  });
+});
+
+// Pixel tiles bg
+const tilesContainer = document.getElementById('pixel-tiles');
+for (let i = 0; i < 60; i++) {
+  const t = document.createElement('div');
+  t.className = 'pixel-tile';
+  t.style.left = Math.random() * 100 + '%';
+  t.style.top = Math.random() * 100 + '%';
+  t.style.animationDelay = (Math.random() * 4) + 's';
+  t.style.animationDuration = (3 + Math.random() * 4) + 's';
+  const s = [8, 16, 24][Math.floor(Math.random() * 3)];
+  t.style.width = t.style.height = s + 'px';
+  tilesContainer.appendChild(t);
+}
+
+// Scroll reveal
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// CHR Canvas — heart fills the full 8×8 grid.
+// Each grid cell (32×32px) = one pixel of the heart sprite.
+const chrCanvas = document.getElementById('chr-canvas');
+if (chrCanvas) {
+  const ctx = chrCanvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  const CELL = 32; // 256 / 8
+  const BG = '#050a05';
+  const pal = [BG, '#c8f5c8', '#3e7a19', '#1a4a08'];
+
+  // 8×8 heart — each value = one full grid cell (0=bg, 1=highlight, 2=body, 3=shadow)
+  const heart = [
+    0, 2, 2, 0, 0, 2, 2, 0,
+    2, 1, 2, 2, 2, 2, 3, 2,
+    2, 2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 2,
+    0, 2, 2, 2, 2, 2, 2, 0,
+    0, 0, 2, 2, 2, 2, 0, 0,
+    0, 0, 0, 2, 2, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+  ];
+
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      ctx.fillStyle = pal[heart[row * 8 + col]];
+      ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+    }
+  }
+}
+
+// Metatile CHR canvas
+const mtChr = document.getElementById('mt-chr-canvas');
+if (mtChr) {
+  const ctx = mtChr.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const pal = ['#050a05', '#ffffff', '#3e7a19', '#1a4a08'];
+  const rows = 8, cols = 16;
+  const patterns = [
+    [2,3,2,2,2,3,2,2, 3,2,2,2,2,2,2,3, 2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2],
+    [0,0,2,2,2,2,0,0, 0,2,2,2,2,2,2,0, 2,2,3,2,2,3,2,2, 2,2,2,2,2,2,2,2, 2,1,2,2,2,2,1,2, 2,2,3,3,3,3,2,2, 0,2,2,2,2,2,2,0, 0,0,2,2,2,2,0,0],
+  ];
+  for (let ty = 0; ty < rows; ty++) {
+    for (let tx = 0; tx < cols; tx++) {
+      const p = patterns[(ty * cols + tx) % patterns.length];
+      for (let py = 0; py < 8; py++) {
+        for (let px = 0; px < 8; px++) {
+          ctx.fillStyle = pal[p[py*8+px]];
+          ctx.fillRect(tx*8+px, ty*8+py, 1, 1);
+        }
+      }
+    }
+  }
+}
+
+// Map grid
+const mapGrid = document.getElementById('map-grid');
+if (mapGrid) {
+  const nesPalette = [
+    'nes-grass','nes-grass','nes-grass','nes-grass2','nes-grass','nes-grass','nes-tree','nes-tree',
+    'nes-tree','nes-grass','nes-grass','nes-grass','nes-grass2','nes-grass','nes-grass','nes-grass',
+    'nes-grass','nes-grass2','nes-grass','nes-grass','nes-grass','nes-grass','nes-grass','nes-grass2',
+    'nes-tree','nes-tree','nes-grass','nes-grass2','nes-grass','nes-grass','nes-grass','nes-grass',
+    'nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt',
+    'nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt','nes-dirt',
+    'nes-stone','nes-stone','nes-stone','nes-stone','nes-stone','nes-stone','nes-stone','nes-stone',
+    'nes-stone','nes-stone','nes-stone','nes-stone','nes-stone','nes-stone','nes-stone','nes-stone',
+  ];
+  const objectPositions = new Set([18, 22, 35]);
+  for (let i = 0; i < 128; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'map-cell ' + (nesPalette[i % nesPalette.length] || 'nes-dark');
+    if (objectPositions.has(i)) {
+      cell.style.outline = '1px solid #c04010';
+      cell.style.outlineOffset = '-1px';
+    }
+    mapGrid.appendChild(cell);
+  }
+}
+</script>
+</body>
+</html>
